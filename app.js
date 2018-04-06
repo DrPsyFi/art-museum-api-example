@@ -10,44 +10,69 @@ const museums = [
   { id: 2, name: 'The Metropolitan Museum of Modern Art' }
 ]
 
+function findMuseum (req, res, next) {
+  const id = parseInt(req.params.id)
+  const museum = museums.find(museum => museum.id === id)
+  if (!museum) next({ status: 404, message: `museum could not be found` })
+
+  req.museum = museum
+  next()
+}
+
+function validateMuseum (req, res, next) {
+  const { name } = req.body
+  if (!name) next({ status: 400, message: `'name' field required` })
+
+  next()
+}
+
+function generateId () {
+  const max = museums.reduce((acc, { id }) => acc > id ? acc : id, -Infinity)
+  return max + 1
+}
+
 app.get('/museums', (req, res, next) => {
   res.json({ museums })
 })
 
-app.get('/museums/:id', (req, res, next) => {
-  const id = parseInt(req.params.id)
-  const museum = museums.find(museum => museum.id === id)
-
-  res.json({ museum })
+app.get('/museums/:id', findMuseum, (req, res, next) => {
+  res.json({ museum: req.museum })
 })
 
-app.post('/museums', (req, res, next) => {
+app.post('/museums', validateMuseum, (req, res, next) => {
   const { name } = req.body
-  // This is not super safe, ID-wise
-  // But... whatever.
-  const museum = { id: museums.length + 1, name }
+  const museum = { id: generateId(), name }
   museums.push(museum)
 
   res.json({ museum })
 })
 
-app.put('/museums/:id', (req, res, next) => {
-  const id = parseInt(req.params.id)
+app.put('/museums/:id', validateMuseum, findMuseum, (req, res, next) => {
   const { name } = req.body
+  Object.assign(req.museum, { name })
 
-  const museum = museums.find(museum => museum.id === id)
-  museum.name = name
-
-  res.json({ museum })
+  res.json({ museum: req.museum })
 })
 
-app.delete('/museums/:id', (req, res, next) => {
-  const id = parseInt(req.params.id)
-  const museum = museums.find(museum => museum.id === id)
-  const index = museums.indexOf(museum)
-
+app.delete('/museums/:id', findMuseum, (req, res, next) => {
+  const index = museums.indexOf(req.museum)
   museums.splice(index, 1)
-  res.json({ museum })
+  
+  res.json({ museum: req.museum })
+})
+
+app.use((req, res, next) => {
+  const status = 404
+  const message = `${req.method} ${req.url} not found`
+
+  next({ status, message })
+})
+
+app.use((err, req, res, next) => {
+  const status = err.status || 500
+  const message = err.message || `Something went wrong`
+
+  res.status(status).json({ status, message })
 })
 
 const listener = () => console.log(`Listening on port ${port}. ✨`)
